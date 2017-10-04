@@ -2,9 +2,8 @@ import os
 import re
 import base64
 import requests
-import urlparse
+from email.mime import multipart, text, application
 
-from pyshorteners import Shortener
 from boto3 import client
 
 
@@ -57,7 +56,7 @@ class AWSEntity(object):
             raise e
 
     @classmethod
-    def send_formatted_message(cls, sender, subject, text_body, to, html_body='', cc=list(), bcc=list(),
+    def send_formatted_message(cls, sender, subject, to, text_body='', html_body='', cc=list(), bcc=list(),
                                reply_to=list()):
         """
         send formatted message using ses
@@ -72,12 +71,12 @@ class AWSEntity(object):
         if len(invalid_recipients) > 0:
             raise Exception('Invalid recipient addresses - {}'.format(invalid_recipients))
 
-        cc_recipients = cc if isinstance(cc, (list, tuple)) else list(cc)
+        cc_recipients = cc if isinstance(cc, (list, tuple)) else [cc]
         invalid_cc = filter(lambda x: not cls.__validate_email(x), cc_recipients)
         if len(invalid_cc) > 0:
             raise Exception('Invalid cc addresses - {}'.format(invalid_cc))
 
-        bcc_recipients = bcc if isinstance(bcc, (list, tuple)) else list(bcc)
+        bcc_recipients = bcc if isinstance(bcc, (list, tuple)) else [bcc]
         invalid_bcc = filter(lambda x: not cls.__validate_email(x), bcc_recipients)
         if len(invalid_bcc) > 0:
             raise Exception('Invalid bcc addresses - {}'.format(invalid_bcc))
@@ -86,33 +85,33 @@ class AWSEntity(object):
             ses_client = client('ses', aws_secret_access_key=cls.__ACCESS_KEY,
                                 aws_access_key_id=cls.__ACCESS_ID, region_name=cls.__REGION)
 
+            msg = {
+                'Subject': {
+                    'Data': subject,
+                    'Charset': 'UTF-8'
+                },
+                'Body': {
+                    'Text': {
+                        'Data': text_body,
+                        'Charset': 'UTF-8'
+                    }
+                }
+            }
+
+            if html_body:
+                msg['Body']['Html'] = {
+                    'Data': html_body,
+                    'Charset': 'UTF-8'
+                }
             response = ses_client.send_email(
-                Source = sender,
+                Source=sender,
                 Destination={
                     'ToAddresses': recipients,
                     'CcAddresses': cc_recipients,
                     'BccAddresses': bcc_recipients
                 },
-                Message={
-                    'Subject': {
-                        'Data': subject,
-                        'Charset': 'UTF-8'
-                    },
-                    'Body': {
-                        'Text': {
-                            'Data': text_body,
-                            'Charset': 'UTF-8'
-                        },
-                        'Html': {
-                            'Data': html_body,
-                            'Charset': 'UTF-8'
-                        }
-                    }
-                },
-                ReplyToAddresses= reply_to if len(reply_to) > 0 else list(sender),
-                ReturnPath='',
-                ReturnPathArn='',
-                SourceArn='',
+                Message=msg,
+                ReplyToAddresses= reply_to if len(reply_to) > 0 else [sender]
             )
             return response
         except Exception, e:
@@ -124,37 +123,49 @@ class AWSEntity(object):
         return True if re.match(regex, email) else False
 
     @classmethod
-    def send_raw_message(cls, sender, subject, body, recipient):
+    def send_raw_message(cls, sender, subject, body, is_html=False, recipients=list(), file_paths=list()):
         """
-        send formatted message using ses
+        send raw message using ses
         :return:
         """
         # validate email address
         if not cls.__validate_email(sender):
             raise Exception('Sender address not an email address')
 
-        if not cls.__validate_email(recipient):
-            raise Exception('Recipient address not an email address')
+        recipients = recipients if isinstance(recipients, (list, tuple)) else [recipients]
+        invalid_recipients = filter(lambda x: not cls.__validate_email(x), recipients)
+        if len(invalid_recipients) > 0:
+            raise Exception('Invalid recipient addresses - {}'.format(invalid_recipients))
 
-        data = {
-            'Data': 'From: %s\nTo: %s\nSubject: %s\nMIME-Version: 1.0\n'
-                    'Content-Type: text/plain\n\n%s.\n\n--NextPart\n'
-                    % (sender, recipient, subject, body),
-        }
-        print(data)
+        msg = multipart.MIMEMultipart('alternative')
+        msg['Subject'] = subject
+        msg['From'] = sender
+        msg['To'] = ','.join(map(str, recipients))
+
+        if is_html:
+            msg_html = text.MIMEText(body, 'html')
+            msg_html.add_header('Content-Type', 'text/html; charset=UTF-8')
+            msg.attach(msg_html)
+        else:
+            msg_body = text.MIMEText(body, 'plain')
+            msg.attach(msg_body)
+
+        for file_path in file_paths:
+            if os.path.isfile(file_path):
+                attachment = application.MIMEApplication(open(file_path, "rb").read())
+                attachment.add_header('Content-Disposition', 'attachment', filename=os.path.basename(file_path))
+                msg.attach(attachment)
 
         try:
             ses_client = client('ses', aws_secret_access_key=cls.__ACCESS_KEY,
                                 aws_access_key_id=cls.__ACCESS_ID, region_name=cls.__REGION)
 
             response = ses_client.send_raw_email(
-                Destinations=[
-                ],
-                FromArn='',
-                RawMessage=data,
-                ReturnPathArn='',
-                Source='',
-                SourceArn='',
+                RawMessage={
+                     'Data': msg.as_string(),
+                },
+                Source=msg['From'],
+                Destinations=recipients
             )
             return response
         except Exception, e:
