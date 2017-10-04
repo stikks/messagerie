@@ -8,6 +8,7 @@ def readme():
 setup(name='Messagerie',
       description='Custom wrapper to aws services',
       long_description=readme(),
+      url='https://github.com/stikks/messagerie',
       author='stikks',
       author_email='styccs@gmail.com',
       include_package_data=True,
