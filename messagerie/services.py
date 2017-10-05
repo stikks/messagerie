@@ -123,7 +123,8 @@ class AWSEntity(object):
         return True if re.match(regex, email) else False
 
     @classmethod
-    def send_raw_message(cls, sender, subject, body, is_html=False, recipients=list(), file_paths=list()):
+    def send_raw_message(cls, sender, subject, body, recipients, is_html=False, cc=list(), bcc=list(),
+                         file_paths=list()):
         """
         send raw message using ses
         :return:
@@ -137,10 +138,26 @@ class AWSEntity(object):
         if len(invalid_recipients) > 0:
             raise Exception('Invalid recipient addresses - {}'.format(invalid_recipients))
 
+        cc_recipients = cc if isinstance(cc, (list, tuple)) else [cc]
+        invalid_cc = filter(lambda x: not cls.__validate_email(x), cc_recipients)
+        if len(invalid_cc) > 0:
+            raise Exception('Invalid cc addresses - {}'.format(invalid_cc))
+
+        bcc_recipients = bcc if isinstance(bcc, (list, tuple)) else [bcc]
+        invalid_bcc = filter(lambda x: not cls.__validate_email(x), bcc_recipients)
+        if len(invalid_bcc) > 0:
+            raise Exception('Invalid bcc addresses - {}'.format(invalid_bcc))
+
         msg = multipart.MIMEMultipart('alternative')
         msg['Subject'] = subject
         msg['From'] = sender
         msg['To'] = ','.join(map(str, recipients))
+
+        if len(cc_recipients) > 0:
+            msg['Cc'] = ','.join(map(str, cc_recipients))
+
+        if len(bcc_recipients) > 0:
+            msg['Bcc'] = ','.join(map(str, bcc_recipients))
 
         if is_html:
             msg_html = text.MIMEText(body, 'html')
