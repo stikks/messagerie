@@ -81,6 +81,11 @@ class AWSEntity(object):
         if len(invalid_bcc) > 0:
             raise Exception('Invalid bcc addresses - {}'.format(invalid_bcc))
 
+        reply_to_recipients = reply_to if isinstance(reply_to, (list, tuple)) else [reply_to]
+        invalid_reply_to = filter(lambda x: not cls.__validate_email(x), reply_to_recipients)
+        if len(invalid_reply_to) > 0:
+            raise Exception('Invalid reply-to addresses - {}'.format(invalid_reply_to))
+
         try:
             ses_client = client('ses', aws_secret_access_key=cls.__ACCESS_KEY,
                                 aws_access_key_id=cls.__ACCESS_ID, region_name=cls.__REGION)
@@ -111,7 +116,7 @@ class AWSEntity(object):
                     'BccAddresses': bcc_recipients
                 },
                 Message=msg,
-                ReplyToAddresses= reply_to if len(reply_to) > 0 else [sender]
+                ReplyToAddresses= reply_to_recipients
             )
             return response
         except Exception, e:
@@ -123,7 +128,7 @@ class AWSEntity(object):
         return True if re.match(regex, email) else False
 
     @classmethod
-    def send_raw_message(cls, sender, subject, body, recipients, is_html=False, cc=list(), bcc=list(),
+    def send_raw_message(cls, sender, subject, body, recipients, is_html=False, cc=list(), bcc=list(), reply_to=list(),
                          file_paths=list()):
         """
         send raw message using ses
@@ -148,6 +153,11 @@ class AWSEntity(object):
         if len(invalid_bcc) > 0:
             raise Exception('Invalid bcc addresses - {}'.format(invalid_bcc))
 
+        reply_to_recipients = reply_to if isinstance(reply_to, (list, tuple)) else [reply_to]
+        invalid_reply_to = filter(lambda x: not cls.__validate_email(x), reply_to_recipients)
+        if len(invalid_reply_to) > 0:
+            raise Exception('Invalid reply-to addresses - {}'.format(invalid_reply_to))
+
         msg = multipart.MIMEMultipart('alternative')
         msg['Subject'] = subject
         msg['From'] = sender
@@ -158,6 +168,9 @@ class AWSEntity(object):
 
         if len(bcc_recipients) > 0:
             msg['Bcc'] = ','.join(map(str, bcc_recipients))
+
+        if len(reply_to_recipients) > 0:
+            msg['Reply-To'] = ','.join(map(str, reply_to_recipients))
 
         if is_html:
             msg_html = text.MIMEText(body, 'html')
