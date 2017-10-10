@@ -11,6 +11,7 @@ class AWSEntity(object):
     __ACCESS_KEY = os.environ['AWS_SECRET_ACCESS_KEY']
     __ACCESS_ID = os.environ['AWS_ACCESS_KEY_ID']
     __REGION = os.environ['AWS_REGION']
+    __S3_BASE_URL = 'https://s3-us-west-2.amazonaws.com'
 
     @classmethod
     def upload_b64(cls, base64_image, filename, bucket_name=os.environ.get('AWS_STORAGE_BUCKET_NAME')):
@@ -22,9 +23,9 @@ class AWSEntity(object):
             s3 = client('s3', aws_secret_access_key=cls.__ACCESS_KEY,
                         aws_access_key_id=cls.__ACCESS_ID)
             _file = re.sub("data:image/jpeg;base64,", '', base64_image)
-            resp = s3.put_object(ACL='public-read-write', Bucket=bucket_name,
+            s3.put_object(ACL='public-read', Bucket=bucket_name,
                                  Body=_file.decode('base64'), Key=filename)
-            return True, resp
+            return '%s/%s/%s' % (cls.__S3_BASE_URL, bucket_name, filename)
         except Exception, e:
             raise e
 
@@ -41,8 +42,8 @@ class AWSEntity(object):
                 raise Exception('Invalid file path')
 
             filename = filename if filename else os.path.basename(file_path)
-            resp = s3.upload_file(file_path, bucket_name, filename)
-            return True, resp
+            s3.upload_file(file_path, bucket_name, filename, ExtraArgs={'ACL': 'public-read'})
+            return '%s/%s/%s' % (cls.__S3_BASE_URL, bucket_name, filename)
         except Exception, e:
             raise e
 
