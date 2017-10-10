@@ -25,8 +25,8 @@ class AWSEntity(object):
             resp = s3.put_object(ACL='public-read-write', Bucket=bucket_name,
                                  Body=_file.decode('base64'), Key=filename)
             return True, resp
-        except:
-            return False, {}
+        except Exception, e:
+            raise e
 
     @classmethod
     def upload_file(cls, file_path, bucket_name=os.environ.get('AWS_STORAGE_BUCKET_NAME'), filename=None):
@@ -37,11 +37,14 @@ class AWSEntity(object):
         try:
             s3 = client('s3', aws_secret_access_key=cls.__ACCESS_KEY,
                         aws_access_key_id=cls.__ACCESS_ID)
+            if not os.path.isfile(file_path):
+                raise Exception('Invalid file path')
+
             filename = filename if filename else os.path.basename(file_path)
             resp = s3.upload_file(file_path, bucket_name, filename)
             return True, resp
-        except:
-            return False, {}
+        except Exception, e:
+            raise e
 
     @staticmethod
     def convert_to_b64(image_url):
@@ -180,11 +183,12 @@ class AWSEntity(object):
             msg_body = text.MIMEText(body, 'plain')
             msg.attach(msg_body)
 
-        for file_path in file_paths:
-            if os.path.isfile(file_path):
-                attachment = application.MIMEApplication(open(file_path, "rb").read())
-                attachment.add_header('Content-Disposition', 'attachment', filename=os.path.basename(file_path))
-                msg.attach(attachment)
+        if isinstance(file_paths, (list, tuple)):
+            for file_path in file_paths:
+                if os.path.isfile(file_path):
+                    attachment = application.MIMEApplication(open(file_path, "rb").read())
+                    attachment.add_header('Content-Disposition', 'attachment', filename=os.path.basename(file_path))
+                    msg.attach(attachment)
 
         try:
             ses_client = client('ses', aws_secret_access_key=cls.__ACCESS_KEY,

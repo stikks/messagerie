@@ -6,7 +6,7 @@ def readme():
         return f.read()
 
 setup(name='Messagerie',
-      version='0.2.1',
+      version='0.2.2',
       description='Custom wrapper to aws services',
       long_description=readme(),
       url='https://github.com/stikks/messagerie',
