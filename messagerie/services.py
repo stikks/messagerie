@@ -14,6 +14,31 @@ class AWSEntity(object):
     __S3_BASE_URL = 'https://s3-us-west-2.amazonaws.com'
 
     @classmethod
+    def create_bucket(cls, bucket_name, permission='public-read', region=os.environ['AWS_REGION']):
+        try:
+            s3 = client('s3', aws_secret_access_key=cls.__ACCESS_KEY,
+                        aws_access_key_id=cls.__ACCESS_ID)
+            return s3.create_bucket(ACL=permission, Bucket=bucket_name, CreateBucketConfiguration={
+                'LocationConstraint': region
+            })
+        except Exception, e:
+            raise e
+
+    @classmethod
+    def delete_bucket(cls, bucket_name):
+        """
+        delete s3 bucket matching bucket_name
+        :param bucket_name
+        :return
+        """
+        try:
+            s3 = client('s3', aws_secret_access_key=cls.__ACCESS_KEY,
+                        aws_access_key_id=cls.__ACCESS_ID)
+            return s3.delete_bucket(Bucket='bucket_name')
+        except Exception, e:
+            raise e
+
+    @classmethod
     def upload_b64(cls, base64_image, filename, bucket_name=os.environ.get('AWS_STORAGE_BUCKET_NAME')):
         """
         Upload base64 encoded image to s3
