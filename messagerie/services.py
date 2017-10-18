@@ -230,3 +230,51 @@ class AWSEntity(object):
             return response
         except Exception, e:
             raise e
+
+    @classmethod
+    def set_identity_notification(cls, identity, notification_type, sns_topic_arn):
+        """
+        handling bounce and complaint ses
+        :param identity: domain or email address identified as source for emails
+        :param notification_type: 'Bounce'|'Complaint'|'Delivery'
+        :param sns_topic_arn: sns topic arn
+        :returns
+        """
+        try:
+            ses_client = client('ses', aws_secret_access_key=cls.__ACCESS_KEY,
+                                aws_access_key_id=cls.__ACCESS_ID, region_name=cls.__REGION)
+
+            return ses_client.set_identity_notification_topic(Identity=identity, NotificationType=notification_type,
+                                                              SnsTopic=sns_topic_arn)
+        except Exception, e:
+            raise e
+
+    @classmethod
+    def create_sns_topic(cls, topic_name):
+        """
+        creates sns topic
+        :param topic_name
+        :returns
+        """
+        try:
+            sns_client = client('sns', aws_secret_access_key=cls.__ACCESS_KEY, regions_name=cls.__REGION,
+                     aws_access_key_id=cls.__ACCESS_ID)
+            return sns_client.create_topic(Name=topic_name)
+        except Exception as e:
+            raise e
+
+    @classmethod
+    def subscribe_to_sns_topic(cls, sns_topic_arn, protocol, endpoint):
+        """
+        subscribe to sns topic arn
+        :param sns_topic_arn: combination of region name, customer name and topic name
+        :param protocol: http|https|email|email-json|sms|sqs|application|lambda
+        :param endpoint: dependent on protocol
+        :returns
+        """
+        try:
+            sns_client = client('sns', aws_secret_access_key=cls.__ACCESS_KEY, regions_name=cls.__REGION,
+                                aws_access_key_id=cls.__ACCESS_ID)
+            return sns_client.subscribe(TopicArn=sns_topic_arn, Protocol=protocol, Endpoint=endpoint)
+        except Exception as e:
+            raise e

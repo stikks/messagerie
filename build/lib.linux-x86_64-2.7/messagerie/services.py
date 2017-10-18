@@ -11,6 +11,32 @@ class AWSEntity(object):
     __ACCESS_KEY = os.environ['AWS_SECRET_ACCESS_KEY']
     __ACCESS_ID = os.environ['AWS_ACCESS_KEY_ID']
     __REGION = os.environ['AWS_REGION']
+    __S3_BASE_URL = 'https://s3-us-west-2.amazonaws.com'
+
+    @classmethod
+    def create_bucket(cls, bucket_name, permission='public-read', region=os.environ['AWS_REGION']):
+        try:
+            s3 = client('s3', aws_secret_access_key=cls.__ACCESS_KEY,
+                        aws_access_key_id=cls.__ACCESS_ID)
+            return s3.create_bucket(ACL=permission, Bucket=bucket_name, CreateBucketConfiguration={
+                'LocationConstraint': region
+            })
+        except Exception, e:
+            raise e
+
+    @classmethod
+    def delete_bucket(cls, bucket_name):
+        """
+        delete s3 bucket matching bucket_name
+        :param bucket_name
+        :return
+        """
+        try:
+            s3 = client('s3', aws_secret_access_key=cls.__ACCESS_KEY,
+                        aws_access_key_id=cls.__ACCESS_ID)
+            return s3.delete_bucket(Bucket='bucket_name')
+        except Exception, e:
+            raise e
 
     @classmethod
     def upload_b64(cls, base64_image, filename, bucket_name=os.environ.get('AWS_STORAGE_BUCKET_NAME')):
@@ -22,11 +48,11 @@ class AWSEntity(object):
             s3 = client('s3', aws_secret_access_key=cls.__ACCESS_KEY,
                         aws_access_key_id=cls.__ACCESS_ID)
             _file = re.sub("data:image/jpeg;base64,", '', base64_image)
-            resp = s3.put_object(ACL='public-read-write', Bucket=bucket_name,
+            s3.put_object(ACL='public-read', Bucket=bucket_name,
                                  Body=_file.decode('base64'), Key=filename)
-            return True, resp
-        except:
-            return False, {}
+            return '%s/%s/%s' % (cls.__S3_BASE_URL, bucket_name, filename)
+        except Exception, e:
+            raise e
 
     @classmethod
     def upload_file(cls, file_path, bucket_name=os.environ.get('AWS_STORAGE_BUCKET_NAME'), filename=None):
@@ -37,11 +63,14 @@ class AWSEntity(object):
         try:
             s3 = client('s3', aws_secret_access_key=cls.__ACCESS_KEY,
                         aws_access_key_id=cls.__ACCESS_ID)
+            if not os.path.isfile(file_path):
+                raise Exception('Invalid file path')
+
             filename = filename if filename else os.path.basename(file_path)
-            resp = s3.upload_file(file_path, bucket_name, filename)
-            return True, resp
-        except:
-            return False, {}
+            s3.upload_file(file_path, bucket_name, filename, ExtraArgs={'ACL': 'public-read'})
+            return '%s/%s/%s' % (cls.__S3_BASE_URL, bucket_name, filename)
+        except Exception, e:
+            raise e
 
     @staticmethod
     def convert_to_b64(image_url):
@@ -180,11 +209,12 @@ class AWSEntity(object):
             msg_body = text.MIMEText(body, 'plain')
             msg.attach(msg_body)
 
-        for file_path in file_paths:
-            if os.path.isfile(file_path):
-                attachment = application.MIMEApplication(open(file_path, "rb").read())
-                attachment.add_header('Content-Disposition', 'attachment', filename=os.path.basename(file_path))
-                msg.attach(attachment)
+        if isinstance(file_paths, (list, tuple)):
+            for file_path in file_paths:
+                if os.path.isfile(file_path):
+                    attachment = application.MIMEApplication(open(file_path, "rb").read())
+                    attachment.add_header('Content-Disposition', 'attachment', filename=os.path.basename(file_path))
+                    msg.attach(attachment)
 
         try:
             ses_client = client('ses', aws_secret_access_key=cls.__ACCESS_KEY,
